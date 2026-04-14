@@ -8,35 +8,21 @@ A distributed observability POC disguised as a magic system. Two .NET 10 microse
 
 ### Architecture
 
-```
-Browser (localhost:3000)
-        │  HTTP POST /api/cast-spell
-        ▼
-┌─────────────────┐
-│   nginx (3000)  │  ← static frontend + reverse proxy
-└─────────────────┘
-        │  HTTP POST /cast-spell   ← proxied to port 8080
-        ▼
-┌─────────────────┐
-│  spell-caster   │  .NET 10 · port 8080
-│  (service 1)    │  Entry point. Receives the request, opens a trace span,
-│                 │  then calls arcane-engine to resolve the outcome.
-└─────────────────┘
-        │  HTTP POST /resolve-spell  ← W3C traceparent header propagated
-        ▼
-┌─────────────────┐
-│  arcane-engine  │  .NET 10 · port 5000 (internal only)
-│  (service 2)    │  Rolls the dice, determines outcome, simulates latency,
-│                 │  persists the spell to Postgres, returns result.
-└─────────────────┘
-        │  SQL INSERT
-        ▼
-┌─────────────────┐
-│   PostgreSQL    │  port 5432 (internal / exposed for local debugging)
-│   (spells DB)   │  One table: spells (id, spell_type, power, result, damage, created_at)
-└─────────────────┘
+```mermaid
+flowchart TD
+    Browser["🌐 Browser\nlocalhost:3000"]
+    nginx["nginx · port 3000\nstatic frontend + reverse proxy"]
+    caster["spell-caster · port 8080\n.NET 10 — entry point\nopens trace span, calls arcane-engine"]
+    engine["arcane-engine · port 5000 internal\n.NET 10 — business logic\ndice roll · latency sim · DB persist"]
+    postgres["PostgreSQL · port 5432\nspells table\n(id, spell_type, power, result, damage, created_at)"]
+    newrelic["☁️ New Relic\nottlp.nr-data.net:4318"]
 
-Both services ──OTLP──► New Relic (https://otlp.nr-data.net:4318)
+    Browser -->|"HTTP POST /api/cast-spell"| nginx
+    nginx -->|"HTTP POST /cast-spell\nproxied to port 8080"| caster
+    caster -->|"HTTP POST /resolve-spell\nW3C traceparent propagated"| engine
+    engine -->|"SQL INSERT"| postgres
+    caster -.->|"OTLP traces + logs"| newrelic
+    engine -.->|"OTLP traces + logs"| newrelic
 ```
 
 ---
@@ -57,6 +43,28 @@ Every spell cast produces **exactly 3 spans** in New Relic Distributed Tracing:
 
 ### Trace Context Propagation
 
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant nginx
+    participant spell-caster
+    participant arcane-engine
+    participant PostgreSQL
+    participant NewRelic as New Relic
+
+    Browser->>nginx: POST /api/cast-spell
+    nginx->>spell-caster: POST /cast-spell
+    note over spell-caster: span: POST /cast-spell (auto)<br/>span: cast-spell.request (manual)
+    spell-caster->>arcane-engine: POST /resolve-spell<br/>[traceparent header injected]
+    note over arcane-engine: span: POST /resolve-spell (auto)<br/>span: arcane-engine.resolve-spell (manual)<br/>span: db.persist-spell (manual)
+    arcane-engine->>PostgreSQL: INSERT INTO spells
+    PostgreSQL-->>arcane-engine: OK
+    arcane-engine-->>spell-caster: { result, damage }
+    spell-caster-->>Browser: { result, damage, traceId }
+    spell-caster--)NewRelic: OTLP export (traces + logs)
+    arcane-engine--)NewRelic: OTLP export (traces + logs)
+```
+
 The W3C `traceparent` header ties spans from both services into one trace:
 
 1. `spell-caster` starts a trace and `AddHttpClientInstrumentation()` automatically injects `traceparent` into the outbound HTTP request to arcane-engine.
@@ -69,10 +77,20 @@ The W3C `traceparent` header ties spans from both services into one trace:
 
 Outcomes are determined in `arcane-engine` using a dice roll (`Random.Shared.NextDouble()` → a float between 0 and 1):
 
-```
-Power > 8  AND  roll < 0.30  →  backfire   (damage = 0, spell hurts the caster)
-Power >= 7 AND  roll < 0.20  →  critical   (damage = power × 20)
-anything else                →  success    (damage = power × 15)
+```mermaid
+flowchart TD
+    Roll["🎲 dice roll\nRandom 0..1"]
+    P1{"power > 8\nAND roll < 0.30?"}
+    P2{"power >= 7\nAND roll < 0.20?"}
+    Backfire["💥 backfire\ndamage = 0"]
+    Critical["⚡ critical\ndamage = power × 20"]
+    Success["✅ success\ndamage = power × 15"]
+
+    Roll --> P1
+    P1 -->|yes| Backfire
+    P1 -->|no| P2
+    P2 -->|yes| Critical
+    P2 -->|no| Success
 ```
 
 Latency is simulated with `Task.Delay(Random.Shared.Next(100, 2001))` — every spell takes between 100ms and 2 seconds to "resolve", which keeps the latency charts in New Relic non-trivial.
