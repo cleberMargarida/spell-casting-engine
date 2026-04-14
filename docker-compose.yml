@@ -1,0 +1,54 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: spells
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - ./infra/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  arcane-engine:
+    build: ./arcane-engine
+    environment:
+      ASPNETCORE_URLS: http://+:5000
+      ConnectionStrings__Default: Host=postgres;Database=spells;Username=postgres;Password=postgres
+      OTEL_SERVICE_NAME: arcane-engine
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-https://otlp.nr-data.net:4318}
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
+      OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS}
+      SIMULATE_DB_FAILURE: ${SIMULATE_DB_FAILURE:-false}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  spell-caster:
+    build: ./spell-caster
+    ports:
+      - "8080:8080"
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      ArcaneEngine__Url: http://arcane-engine:5000
+      OTEL_SERVICE_NAME: spell-caster
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-https://otlp.nr-data.net:4318}
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
+      OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS}
+    depends_on:
+      - arcane-engine
+
+  frontend:
+    image: nginx:alpine
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend/index.html:/usr/share/nginx/html/index.html:ro
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - spell-caster

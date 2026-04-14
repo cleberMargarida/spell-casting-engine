@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🔮 Spell Casting Engine</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=MedievalSharp&family=Fira+Code&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    min-height: 100vh;
+    background: radial-gradient(ellipse at bottom, #1b2735 0%, #090a0f 100%);
+    color: #e0d6ff;
+    font-family: 'MedievalSharp', cursive;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow-x: hidden;
+  }
+  .stars {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: transparent;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .stars::after {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background-image:
+      radial-gradient(1px 1px at 20px 30px, #fff, transparent),
+      radial-gradient(1px 1px at 40px 70px, rgba(255,255,255,0.8), transparent),
+      radial-gradient(1px 1px at 90px 40px, #fff, transparent),
+      radial-gradient(1px 1px at 160px 120px, rgba(255,255,255,0.6), transparent),
+      radial-gradient(1.5px 1.5px at 200px 60px, #fff, transparent),
+      radial-gradient(1px 1px at 300px 160px, rgba(255,255,255,0.7), transparent),
+      radial-gradient(1px 1px at 400px 80px, #fff, transparent),
+      radial-gradient(1.5px 1.5px at 500px 200px, rgba(255,255,255,0.5), transparent);
+    background-size: 550px 250px;
+    animation: twinkle 5s ease-in-out infinite alternate;
+  }
+  @keyframes twinkle { from { opacity: 0.5; } to { opacity: 1; } }
+  h1 {
+    font-size: 2.8rem;
+    margin: 30px 0 5px;
+    text-shadow: 0 0 20px rgba(147, 112, 255, 0.8), 0 0 40px rgba(147, 112, 255, 0.4);
+    z-index: 1;
+    letter-spacing: 2px;
+  }
+  .subtitle { font-size: 1rem; color: #9e8cc4; margin-bottom: 25px; z-index: 1; }
+  .grimoire {
+    z-index: 1;
+    background: rgba(20, 15, 40, 0.85);
+    border: 1px solid rgba(147, 112, 255, 0.3);
+    border-radius: 16px;
+    padding: 30px;
+    width: 420px;
+    box-shadow: 0 0 40px rgba(100, 60, 200, 0.2), inset 0 0 30px rgba(100, 60, 200, 0.05);
+  }
+  label { display: block; font-size: 1.1rem; margin: 12px 0 6px; color: #c4b5ff; }
+  .spell-select, .power-slider { width: 100%; }
+  .spell-select {
+    background: rgba(30, 20, 60, 0.9);
+    border: 1px solid rgba(147, 112, 255, 0.4);
+    color: #e0d6ff;
+    font-family: 'MedievalSharp', cursive;
+    font-size: 1.15rem;
+    padding: 10px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    appearance: none;
+  }
+  .spell-select option { background: #1a1230; }
+  .power-row { display: flex; align-items: center; gap: 12px; }
+  .power-slider {
+    -webkit-appearance: none; appearance: none;
+    height: 8px; border-radius: 4px; flex: 1;
+    background: linear-gradient(90deg, #3b2d6b, #9370ff);
+    outline: none;
+  }
+  .power-slider::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: radial-gradient(circle, #c4a0ff, #7b5ea7);
+    cursor: pointer; box-shadow: 0 0 10px rgba(147, 112, 255, 0.6);
+  }
+  .power-val {
+    font-size: 1.8rem; min-width: 36px; text-align: center;
+    color: #c4a0ff; text-shadow: 0 0 8px rgba(147, 112, 255, 0.5);
+  }
+  .cast-btn {
+    width: 100%; margin-top: 22px; padding: 14px;
+    font-family: 'MedievalSharp', cursive; font-size: 1.4rem;
+    background: linear-gradient(135deg, #6a3de8, #9b59e0);
+    color: #fff; border: none; border-radius: 10px;
+    cursor: pointer; letter-spacing: 1px;
+    box-shadow: 0 4px 20px rgba(106, 61, 232, 0.4);
+    transition: all 0.2s;
+    position: relative; overflow: hidden;
+  }
+  .cast-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 30px rgba(106, 61, 232, 0.6); }
+  .cast-btn:active { transform: translateY(0); }
+  .cast-btn.casting {
+    background: linear-gradient(135deg, #4a2db8, #7b39c0);
+    pointer-events: none;
+  }
+  .cast-btn.casting::after {
+    content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+    animation: shimmer 1s infinite;
+  }
+  @keyframes shimmer { to { left: 100%; } }
+
+  .result-area {
+    z-index: 1; width: 420px; margin-top: 20px; margin-bottom: 30px;
+    min-height: 60px;
+  }
+  .result-card {
+    background: rgba(20, 15, 40, 0.85);
+    border-radius: 12px; padding: 20px;
+    border: 1px solid rgba(147, 112, 255, 0.3);
+    animation: fadeIn 0.4s ease;
+  }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  .result-card.success { border-color: rgba(80, 220, 120, 0.5); }
+  .result-card.critical { border-color: rgba(255, 215, 0, 0.6); }
+  .result-card.backfire { border-color: rgba(255, 80, 80, 0.5); }
+  .result-icon { font-size: 2.5rem; text-align: center; margin-bottom: 8px; }
+  .result-label {
+    text-align: center; font-size: 1.4rem; margin-bottom: 10px; text-transform: uppercase;
+    letter-spacing: 3px;
+  }
+  .result-card.success .result-label { color: #50dc78; text-shadow: 0 0 12px rgba(80,220,120,0.4); }
+  .result-card.critical .result-label { color: #ffd700; text-shadow: 0 0 12px rgba(255,215,0,0.4); }
+  .result-card.backfire .result-label { color: #ff5050; text-shadow: 0 0 12px rgba(255,80,80,0.4); }
+  .result-stats {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+    font-family: 'Fira Code', monospace; font-size: 0.85rem; color: #a99bcc;
+  }
+  .result-stats span { background: rgba(40,30,70,0.6); padding: 6px 10px; border-radius: 6px; }
+  .result-stats .val { color: #d4c4ff; }
+  .trace-link {
+    display: block; margin-top: 10px; text-align: center;
+    font-family: 'Fira Code', monospace; font-size: 0.75rem;
+    color: #7b6baf; word-break: break-all;
+  }
+
+  .history { z-index: 1; width: 420px; margin-bottom: 40px; }
+  .history h3 { font-size: 1rem; color: #7b6baf; margin-bottom: 8px; }
+  .history-list { display: flex; flex-direction: column; gap: 4px; max-height: 180px; overflow-y: auto; }
+  .history-item {
+    font-family: 'Fira Code', monospace; font-size: 0.75rem;
+    padding: 5px 10px; border-radius: 6px;
+    background: rgba(20, 15, 40, 0.6);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .history-item .hi-spell { color: #c4a0ff; }
+  .history-item .hi-result { font-weight: bold; }
+  .hi-result.success { color: #50dc78; }
+  .hi-result.critical { color: #ffd700; }
+  .hi-result.backfire { color: #ff5050; }
+  .hi-dmg { color: #a99bcc; }
+
+  .rapid-fire {
+    z-index: 1; width: 420px; margin-bottom: 10px;
+    display: flex; gap: 8px;
+  }
+  .rapid-btn {
+    flex: 1; padding: 8px; font-family: 'MedievalSharp', cursive;
+    font-size: 0.95rem; border: 1px solid rgba(147,112,255,0.3);
+    background: rgba(30, 20, 60, 0.7); color: #c4a0ff;
+    border-radius: 8px; cursor: pointer; transition: all 0.2s;
+  }
+  .rapid-btn:hover { background: rgba(60, 40, 120, 0.7); border-color: rgba(147,112,255,0.6); }
+</style>
+</head>
+<body>
+<div class="stars"></div>
+
+<h1>🔮 Spell Casting Engine</h1>
+<p class="subtitle">~ channel the arcane forces ~</p>
+
+<div class="grimoire">
+  <label for="spell">📜 Choose thy Spell</label>
+  <select id="spell" class="spell-select">
+    <option value="fireball">🔥 Fireball — raw inferno</option>
+    <option value="icebolt">❄️ Icebolt — frozen vengeance</option>
+    <option value="thunderstrike">⚡ Thunderstrike — sky fury</option>
+    <option value="voidbeam">🌑 Voidbeam — the abyss stares back</option>
+    <option value="heal">💚 Heal — bargaining with fate</option>
+  </select>
+
+  <label for="power">⚡ Power Level</label>
+  <div class="power-row">
+    <input type="range" id="power" class="power-slider" min="1" max="10" value="7">
+    <span id="powerVal" class="power-val">7</span>
+  </div>
+
+  <button id="castBtn" class="cast-btn" onclick="castSpell()">✨ Cast Spell ✨</button>
+</div>
+
+<div class="rapid-fire">
+  <button class="rapid-btn" onclick="rapidFire(5)">⚔️ Volley ×5</button>
+  <button class="rapid-btn" onclick="rapidFire(10)">💀 Barrage ×10</button>
+  <button class="rapid-btn" onclick="castSpell(9, true)">🎲 Backfire Roulette (9)</button>
+</div>
+
+<div class="result-area" id="resultArea"></div>
+
+<div class="history">
+  <h3>📋 Spell Log</h3>
+  <div class="history-list" id="historyList"></div>
+</div>
+
+<script>
+const API = '/api/cast-spell';
+const powerSlider = document.getElementById('power');
+const powerVal = document.getElementById('powerVal');
+powerSlider.addEventListener('input', () => powerVal.textContent = powerSlider.value);
+
+const resultIcons = { success: '✅', critical: '💥', backfire: '💀' };
+const resultFlavors = {
+  success: ['The spell lands true!', 'A clean cast. The crowd gasps.', 'Textbook execution.', 'The arcane flows obey.'],
+  critical: ['MASSIVE HIT! The earth trembles!', 'The stars aligned for this one!', 'DEVASTATING! Pure arcane fury!', 'Legendary strike!'],
+  backfire: ['The spell explodes in your face!', 'Reality says no. You take the hit.', 'The void laughs at your hubris.', 'Arcane feedback! Who even let you in here?', 'You cast fireball on yourself. Classic.']
+};
+const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+
+async function castSpell(overridePower, isRoulette) {
+  const btn = document.getElementById('castBtn');
+  const spellType = document.getElementById('spell').value;
+  const power = overridePower || parseInt(powerSlider.value);
+
+  btn.classList.add('casting');
+  btn.textContent = '🌀 Channeling...';
+
+  try {
+    const res = await fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ spellType, power })
+    });
+    const data = await res.json();
+    showResult(spellType, power, data);
+    addHistory(spellType, power, data);
+  } catch (err) {
+    document.getElementById('resultArea').innerHTML = `
+      <div class="result-card backfire">
+        <div class="result-icon">💥</div>
+        <div class="result-label" style="color:#ff5050">CONNECTION LOST</div>
+        <div class="trace-link">${err.message}</div>
+      </div>`;
+  } finally {
+    btn.classList.remove('casting');
+    btn.textContent = '✨ Cast Spell ✨';
+  }
+}
+
+function showResult(spell, power, data) {
+  const r = data.result;
+  document.getElementById('resultArea').innerHTML = `
+    <div class="result-card ${r}">
+      <div class="result-icon">${resultIcons[r] || '❓'}</div>
+      <div class="result-label">${r}</div>
+      <p style="text-align:center; margin-bottom:12px; font-size:1.05rem; color:#b8a8e0">${pick(resultFlavors[r] || resultFlavors.success)}</p>
+      <div class="result-stats">
+        <span>Spell: <span class="val">${spell}</span></span>
+        <span>Power: <span class="val">${power}</span></span>
+        <span>Damage: <span class="val">${data.damage}</span></span>
+        <span>Result: <span class="val">${r}</span></span>
+      </div>
+      <div class="trace-link">🔗 traceId: ${data.traceId}</div>
+    </div>`;
+}
+
+function addHistory(spell, power, data) {
+  const list = document.getElementById('historyList');
+  const item = document.createElement('div');
+  item.className = 'history-item';
+  item.innerHTML = `
+    <span class="hi-spell">${spell} (${power})</span>
+    <span class="hi-result ${data.result}">${data.result}</span>
+    <span class="hi-dmg">${data.damage} dmg</span>`;
+  list.prepend(item);
+}
+
+async function rapidFire(count) {
+  for (let i = 0; i < count; i++) {
+    const spells = ['fireball','icebolt','thunderstrike','voidbeam','heal'];
+    document.getElementById('spell').value = spells[Math.floor(Math.random() * spells.length)];
+    const p = Math.floor(Math.random() * 10) + 1;
+    powerSlider.value = p;
+    powerVal.textContent = p;
+    await castSpell();
+  }
+}
+</script>
+</body>
+</html>

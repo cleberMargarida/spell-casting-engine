@@ -1,3 +1,4 @@
 <Solution>
-  <Project Path="spell-casting-engine.csproj" />
+  <Project Path="spell-caster/spell-caster.csproj" />
+  <Project Path="arcane-engine/arcane-engine.csproj" />
 </Solution>
